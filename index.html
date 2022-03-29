@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+		<meta name="theme-color" content="#282c34" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=0" />
+		<title>Adjustable Sound</title>
+  </head>
+  <body>
+		<style>
+			html {
+				background-color: #282c34;
+				overflow:hidden;
+				color: white;
+				font-size: large;
+			}
+
+			body {  
+				margin: 0;
+				font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 
+				'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 
+				'Droid Sans', 'Helvetica Neue', sans-serif;
+			-webkit-font-smoothing: antialiased;
+			-moz-osx-font-smoothing: grayscale;
+			height: 100vh;
+			width: 100%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			flex-direction: column;
+			}
+
+			button {
+				padding: 8px;
+				padding-left: 15px;
+				padding-right: 15px;
+				border-radius:5px;
+				background-color: transparent;
+				font-size: xx-large;
+				border:none;
+			}
+
+			input {
+				margin:15px;
+				width: 70vw;
+			}
+
+			h1 {
+				color:white;
+			}
+
+		</style>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+		<h1>Press ▶️  and adjust the slider</h1>
+		<button id="playButton">▶️</button>
+		<input type="range" 
+			min="0" max="4196" value="441" 
+			class="slider" id="freqSlider"
+		/>
+		<div id="freqDisplay"/>
+		<script>
+			const freqSlider = document.getElementById("freqSlider");
+			const freqDisplay = document.getElementById("freqDisplay");	
+			const playButton = document.getElementById("playButton");	
+
+			window.AudioContext = window.AudioContext || window.webkitAudioContext;
+
+			const audio = {
+				volume: 0.2,
+				durationInSeconds: 0.5,
+				frequency: 441,
+				playing:false,
+				sampleRate: 44100,
+				wave: {
+					real: [0,1],
+					imag: [0,0],
+				},
+				source: undefined, //audio source
+				context: undefined, //AudioContext
+				prev: undefined, //used for state changes
+				channelBuffer: undefined, //used for custom buffer(s)
+				arr: undefined, //used for custom buffer
+			};
+
+			// Initialize prev object for watching changes
+			const initPrev = (audio) => {
+				const keys = ['sampleRate', 'volume', 'durationInSeconds', 'frequency'];
+				audio.prev = { keys };
+				keys.forEach((key)=>{
+					audio.prev[key] = audio[key];
+				});
+			}
+
+			// Update the values that we are watching from the audio object
+			const updatePrev = (audio) => {
+				if(!audio.prev) initPrev(audio);
+
+				audio.prev.keys.forEach((key)=>{
+					audio.prev[key] = audio[key];
+				});
+			}
+
+			// Check if we have received updates on values that we are watching
+			const audioHasUpdates = (audio) => {
+				if(!audio.prev) return true;
+
+				return audio.prev.keys.some((key)=>{
+					if(audio[key] !== audio.prev[key]) {
+						return true;
+					} 
+				});
+			}
+		
+			// Create the audio Context to allow playing sound
+			const createAudioContext = (audio) => {
+				audio.context = new AudioContext({
+					latencyHint: 'interactive',
+					sampleRate: audio.sampleRate
+				});
+			}
+
+			// Unused function. This is for a custom buffer, making a sine wave.
+			const sampleSineWave = (sampleNumber, sampleFreq) => {
+				return Math.sin(sampleNumber / (sampleFreq / (Math.PI * 2)))
+			}
+			
+			// Update the audio samples, and attach to the audio node
+			const updateSource = (audio) => {
+				if(!audio.context){
+					createAudioContext(audio);
+				}
+
+				// Create Audio source if not present
+				if(!audio.source){
+					// Creating an oscillator. 
+					// Replace this, or add channels to the audio context for different sounds
+					audio.source = audio.context.createOscillator();
+					const wave = audio.context.createPeriodicWave(audio.wave.real, audio.wave.imag);
+					audio.source.setPeriodicWave(wave);
+					audio.source.connect(audio.context.destination);
+					audio.source.loop = true;
+				}
+
+				// Set source frequency every time update is called
+				audio.source.frequency.value = audio.frequency;
+
+				// Successful update, set prev. params for possible stateful updates
+				updatePrev(audio);
+			}
+			
+			const stopSoundLoop = (audio) => {
+				audio.playing = false;
+				if(!audio.source) return;
+				audio.source.stop(0);
+				audio.source = undefined;
+			}
+			
+			const startSoundLoop = (audio) => {
+				updateSource(audio);	
+				if(!audio.source) return;
+				audio.source.start(0);
+				audio.playing = true;
+			}
+
+			const handleFreqSlider = (event) => {
+				audio.frequency = event.target.value;
+				freqDisplay.textContent = `${audio.frequency} Hz`;
+				updateSource(audio);
+			}
+
+			const handlePlayButton = () => {
+				if(audio.playing){
+					stopSoundLoop(audio);
+					playButton.textContent = " ▶️  "; 
+					return;
+				}
+				playButton.textContent = " ⏹  "; 
+				startSoundLoop(audio);
+			}
+
+			playButton.onclick = handlePlayButton;
+
+			// Triggering updates oninput so that slider changes occur without release
+			freqSlider.oninput = handleFreqSlider
+			freqDisplay.textContent = `${audio.frequency} Hz`;
+
+		</script>
+  </body>
+</html>
